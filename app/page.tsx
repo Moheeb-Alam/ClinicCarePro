@@ -101,7 +101,6 @@ export default async function Home() {
 
   return (
     <Dashboard
-      clinicName={clinic?.name ?? "Your clinic"}
       userEmail={String(data.claims.email ?? "")}
       role={membership.role}
       schedule={!canReadAppointments || appointmentRowsError ? null : (appointmentRows ?? []).map((appointment) => ({

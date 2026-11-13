@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Activity, CalendarDays, ChartNoAxesCombined, FileText, FlaskConical,
   History, LayoutDashboard, Pill, Receipt, ScanLine, Settings, Stethoscope, Users,
@@ -29,7 +29,8 @@ const hiddenRoutes = new Set(["/login", "/reset-password", "/reset-password/upda
 
 export default function AppFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  if (pathname === "/" || hiddenRoutes.has(pathname) || pathname.startsWith("/auth/")) {
+  const router = useRouter();
+  if (hiddenRoutes.has(pathname) || pathname.startsWith("/auth/")) {
     return <>{children}</>;
   }
 
@@ -51,7 +52,15 @@ export default function AppFrame({ children }: { children: ReactNode }) {
             {links.map(({ label, href, Icon }) => {
               const selected = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
               return (
-                <Link key={href} href={href} prefetch={true} className={`nav-link${selected ? " selected" : ""}`} aria-current={selected ? "page" : undefined}>
+                <Link
+                  key={href}
+                  href={href}
+                  prefetch={true}
+                  onMouseEnter={() => router.prefetch(href)}
+                  onFocus={() => router.prefetch(href)}
+                  className={`nav-link${selected ? " selected" : ""}`}
+                  aria-current={selected ? "page" : undefined}
+                >
                   <span className="icon" aria-hidden="true"><Icon size={16} strokeWidth={1.8} /></span>
                   <span>{label}</span>
                 </Link>

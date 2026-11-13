@@ -2,13 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signOut } from "@/app/actions/auth";
-import {
-  Activity, Boxes, CalendarDays, ChartNoAxesCombined, ClipboardList, FileText,
-  FlaskConical, History, LayoutDashboard, Pill, Receipt, ScanLine, Settings,
-  Stethoscope, Users,
-  type LucideIcon,
-} from "lucide-react";
 
 type DashboardStats = {
   patients: number | null;
@@ -25,21 +18,6 @@ type AppointmentPreview = {
   doctorName: string;
 };
 
-const navigation = [
-  { title: "WORKSPACE", items: [["Overview", "overview"], ["Appointments", "appointments"], ["Patients", "patients"], ["Doctors", "doctors"], ["Queue", "queue"]] },
-  { title: "DIAGNOSTICS", items: [["Laboratory", "lab"], ["Imaging", "imaging"], ["Reports", "reports"]] },
-  { title: "OPERATIONS", items: [["Pharmacy", "pharmacy"], ["Billing", "billing"], ["Inventory", "inventory"], ["Staff", "staff"]] },
-  { title: "ADMINISTRATION", items: [["Analytics", "analytics"], ["Audit log", "audit"], ["Settings", "settings"]] },
-];
-
-const navigationIcons: Record<string, LucideIcon> = {
-  overview: LayoutDashboard, appointments: CalendarDays, patients: Users,
-  doctors: Stethoscope, queue: ClipboardList, lab: FlaskConical,
-  imaging: ScanLine, reports: FileText, pharmacy: Pill, billing: Receipt,
-  inventory: Boxes, staff: Users, analytics: ChartNoAxesCombined,
-  audit: History, settings: Settings,
-};
-
 const metrics = [
   { label: "Registered patients", hint: "Active patient records", icon: "♙", key: "patients" },
   { label: "Appointments today", hint: "Scheduled for today", icon: "▦", key: "appointments" },
@@ -47,20 +25,13 @@ const metrics = [
   { label: "Open encounters", hint: "Awaiting completion", icon: "≋", key: "encounters" },
 ];
 
-function Icon({ name }: { name: string }) {
-  const Glyph = navigationIcons[name] ?? Activity;
-  return <span className="icon" aria-hidden="true"><Glyph size={16} strokeWidth={1.8} /></span>;
-}
-
 export default function Dashboard({
   userEmail,
-  clinicName,
   role,
   stats,
   schedule,
 }: {
   userEmail: string;
-  clinicName: string;
   role: string;
   stats: DashboardStats;
   schedule: AppointmentPreview[] | null;
@@ -72,29 +43,6 @@ export default function Dashboard({
   const [active, setActive] = useState("Overview");
   const [query, setQuery] = useState("");
   const [notice, setNotice] = useState("");
-  const visibleNavigation = navigation.map((group) => ({
-    ...group,
-    items: group.items.filter(([label]) => {
-      const roles: Record<string, string[]> = {
-        Appointments: ["super_admin", "admin", "receptionist", "doctor"],
-        Patients: ["super_admin", "admin", "receptionist", "doctor", "lab_technician", "radiology_technician", "radiologist"],
-        Doctors: ["super_admin", "admin", "receptionist", "doctor"],
-        Queue: ["super_admin", "admin", "receptionist", "doctor"],
-        Laboratory: ["super_admin", "admin", "receptionist", "doctor", "lab_technician", "auditor"],
-        Imaging: ["super_admin", "admin", "radiology_technician", "radiologist", "auditor"],
-        Reports: ["super_admin", "admin", "accountant", "auditor"],
-        Pharmacy: ["super_admin", "admin", "pharmacist"],
-        Billing: ["super_admin", "admin", "receptionist", "accountant", "auditor"],
-        Inventory: ["super_admin", "admin", "pharmacist"],
-        Staff: ["super_admin", "admin"],
-        Analytics: ["super_admin", "admin", "accountant", "auditor"],
-        "Audit log": ["super_admin", "admin", "auditor"],
-        Settings: ["super_admin", "admin"],
-      };
-      return label === "Overview" || (roles[label] ?? []).includes(role);
-    }),
-  })).filter((group) => group.items.length > 0);
-
   function choose(label: string) {
     if (["Patients", "Appointments", "Doctors", "Laboratory", "Billing", "Pharmacy", "Inventory", "Imaging", "Reports", "Analytics", "Audit log", "Settings"].includes(label)) {
       router.push(label === "Patients" ? "/patients" : label === "Doctors" ? "/doctors" : label === "Laboratory" ? "/laboratory" : label === "Billing" ? "/billing" : ["Pharmacy", "Inventory"].includes(label) ? "/pharmacy" : label === "Imaging" ? "/imaging" : ["Reports", "Analytics"].includes(label) ? "/reports" : label === "Audit log" ? "/audit" : label === "Settings" ? "/settings" : "/appointments");
@@ -112,46 +60,8 @@ export default function Dashboard({
     setNotice(label === "Overview" ? "" : `${label} workspace is ready to connect.`);
   }
 
-  function prefetchPage(label: string) {
-    const route = label === "Patients" ? "/patients"
-      : label === "Doctors" ? "/doctors"
-      : label === "Laboratory" ? "/laboratory"
-      : label === "Billing" ? "/billing"
-      : ["Pharmacy", "Inventory"].includes(label) ? "/pharmacy"
-      : label === "Imaging" ? "/imaging"
-      : ["Reports", "Analytics"].includes(label) ? "/reports"
-      : label === "Audit log" ? "/audit"
-      : label === "Settings" ? "/settings"
-      : label === "Staff" ? "/staff"
-      : label === "Queue" ? (role === "doctor" ? "/encounters" : "/appointments")
-      : label === "Appointments" ? "/appointments" : null;
-    if (route) router.prefetch(route);
-  }
-
   return (
-    <main className="app-shell">
-      <aside className="sidebar">
-        <a className="brand" href="#" onClick={() => choose("Overview")}>
-          <span className="brand-mark"><span>✚</span></span>
-          <span className="brand-copy"><strong>cliniccare<span>pro</span></strong><small>CARE, CONNECTED.</small></span>
-        </a>
-        <div className="clinic-switch">
-          <span className="clinic-avatar">CC</span><span className="clinic-copy"><b>{clinicName}</b><small>Clinic workspace</small></span><span className="chevron">⌄</span>
-        </div>
-        <nav aria-label="Main navigation" className="nav-groups">
-          {visibleNavigation.map((group) => <section key={group.title} className="nav-group">
-            <p className="nav-heading">{group.title}</p>
-            {group.items.map(([label, glyph]) => <button key={label} className={active === label ? "nav-link selected" : "nav-link"} onMouseEnter={() => prefetchPage(label)} onFocus={() => prefetchPage(label)} onClick={() => choose(label)}>
-              <Icon name={glyph} /><span>{label}</span>{label === "Queue" && <i className="nav-dot" />}
-            </button>)}
-          </section>)}
-        </nav>
-        <div className="sidebar-bottom">
-          <div className="support-card"><div className="support-orb">?</div><b>Need a hand?</b><p>Visit the help center for a quick guide.</p><button onClick={() => setNotice("Help center is coming soon.")}>Open help center <span>↗</span></button></div>
-          <form action={signOut}><button className="user-profile" type="submit"><span className="user-avatar">CC</span><span><b>{userEmail || "Clinic administrator"}</b><small>Clinic account · Sign out</small></span><span className="more">↗</span></button></form>
-        </div>
-      </aside>
-
+    <main className="dashboard-page">
       <section className="main-area">
         <header className="topbar">
           <div className="breadcrumb"><span>Clinic</span><b>/</b><strong>{active}</strong></div>
