@@ -1,69 +1,124 @@
-import Image from "next/image";
+﻿import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { localDateBoundary } from "@/lib/dates";
+import Dashboard from "./dashboard";
 
-export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+export const instant = false;
+
+export default async function Home() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+  if (!url || !key) {
+    return (
+      <main className="setup-screen">
+        <div className="setup-card">
+          <span className="brand-mark">✚</span>
+          <p className="setup-eyebrow">CLINICCARE PRO</p>
+          <h1>Connect your clinic workspace</h1>
+          <p>Add your Supabase project URL and publishable key to <code>.env.local</code>, then apply the migration to enable secure sign-in and live clinic data.</p>
+          <Link href="https://supabase.com/dashboard" target="_blank" rel="noreferrer">Open Supabase dashboard ↗</Link>
         </div>
       </main>
-    </div>
+    );
+  }
+
+  const supabase = await createClient();
+  const { data, error: claimsError } = await supabase.auth.getClaims();
+  if (!data?.claims || claimsError) redirect("/login");
+
+  const userId = String(data.claims.sub ?? "");
+  const { data: membership, error: membershipError } = await supabase
+    .from("clinic_memberships")
+    .select("clinic_id, role")
+    .eq("user_id", userId)
+    .eq("active", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (membershipError || !membership) {
+    return (
+      <main className="setup-screen">
+        <div className="setup-card">
+          <span className="brand-mark">✚</span>
+          <p className="setup-eyebrow">CLINICCARE PRO</p>
+          <h1>Clinic access not set up</h1>
+          <p>{membershipError
+            ? `The app could not read clinic membership data (${membershipError.code}). Check the local Supabase project and database access.`
+            : "No active clinic membership was found for this login. Check the email and membership rows in Supabase SQL Editor."}</p>
+        </div>
+      </main>
+    );
+  }
+
+  const { data: clinic } = await supabase
+    .from("clinics")
+    .select("name, timezone")
+    .eq("id", membership.clinic_id)
+    .maybeSingle();
+  const timezone = clinic?.timezone ?? "Asia/Karachi";
+  const now = new Date();
+  const start = localDateBoundary(now, timezone, 0);
+  const end = localDateBoundary(now, timezone, 1);
+  const canReadPatients = ["super_admin", "admin", "receptionist", "doctor", "lab_technician", "radiology_technician", "radiologist"].includes(membership.role);
+  const canReadAppointments = ["super_admin", "admin", "receptionist", "doctor"].includes(membership.role);
+  const canReadEncounters = ["super_admin", "admin", "doctor", "auditor"].includes(membership.role);
+
+  const [patients, appointments, doctors, encounters] = await Promise.all([
+    supabase.from("patients").select("id", { count: "exact", head: true })
+      .eq("clinic_id", membership.clinic_id).is("archived_at", null),
+    supabase.from("appointments").select("id", { count: "exact", head: true })
+      .eq("clinic_id", membership.clinic_id).gte("starts_at", start).lt("starts_at", end)
+      .in("status", ["scheduled", "confirmed", "checked_in", "in_consultation"]),
+    supabase.from("doctors").select("id", { count: "exact", head: true })
+      .eq("clinic_id", membership.clinic_id).eq("active", true),
+    supabase.from("encounters").select("id", { count: "exact", head: true })
+      .eq("clinic_id", membership.clinic_id).is("finalized_at", null),
+  ]);
+  const { data: appointmentRows, error: appointmentRowsError } = await supabase
+    .from("appointments")
+    .select("id, starts_at, status, patient_id, doctor_id")
+    .eq("clinic_id", membership.clinic_id)
+    .gte("starts_at", start)
+    .lt("starts_at", end)
+    .in("status", ["scheduled", "confirmed", "checked_in", "in_consultation"])
+    .order("starts_at", { ascending: true })
+    .limit(5);
+  const patientIds = [...new Set((appointmentRows ?? []).map((appointment) => appointment.patient_id))];
+  const doctorIds = [...new Set((appointmentRows ?? []).map((appointment) => appointment.doctor_id))];
+  const [patientsById, doctorsById] = await Promise.all([
+    patientIds.length
+      ? supabase.from("patients").select("id, full_name").in("id", patientIds)
+      : Promise.resolve({ data: [], error: null }),
+    doctorIds.length
+      ? supabase.from("doctors").select("id, full_name").in("id", doctorIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  const patientNames = new Map((patientsById.data ?? []).map((patient) => [patient.id, patient.full_name]));
+  const doctorNames = new Map((doctorsById.data ?? []).map((doctor) => [doctor.id, doctor.full_name]));
+
+  return (
+    <Dashboard
+      clinicName={clinic?.name ?? "Your clinic"}
+      userEmail={String(data.claims.email ?? "")}
+      role={membership.role}
+      schedule={!canReadAppointments || appointmentRowsError ? null : (appointmentRows ?? []).map((appointment) => ({
+        id: appointment.id,
+        startsAt: appointment.starts_at,
+        status: appointment.status,
+        patientName: patientNames.get(appointment.patient_id) ?? "Patient",
+        doctorName: doctorNames.get(appointment.doctor_id) ?? "Doctor",
+      }))}
+      stats={{
+        patients: !canReadPatients || patients.error ? null : patients.count,
+        appointments: !canReadAppointments || appointments.error ? null : appointments.count,
+        doctors: doctors.error ? null : doctors.count,
+        encounters: !canReadEncounters || encounters.error ? null : encounters.count,
+      }}
+    />
   );
 }
+
+
