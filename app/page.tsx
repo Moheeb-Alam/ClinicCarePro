@@ -46,7 +46,7 @@ export default async function Home() {
           <p className="setup-eyebrow">CLINICCARE PRO</p>
           <h1>Clinic access not set up</h1>
           <p>{membershipError
-            ? `The app could not read clinic membership data (${membershipError.code}). Check the local Supabase project and database access.`
+            ? `The app could not read clinic membership data (${membershipError.code}: ${membershipError.message}).` 
             : "No active clinic membership was found for this login. Check the email and membership rows in Supabase SQL Editor."}</p>
         </div>
       </main>

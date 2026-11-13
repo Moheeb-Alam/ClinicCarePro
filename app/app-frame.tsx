@@ -51,7 +51,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
             {links.map(({ label, href, Icon }) => {
               const selected = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
               return (
-                <Link key={href} href={href} className={`nav-link${selected ? " selected" : ""}`} aria-current={selected ? "page" : undefined}>
+                <Link key={href} href={href} prefetch={true} className={`nav-link${selected ? " selected" : ""}`} aria-current={selected ? "page" : undefined}>
                   <span className="icon" aria-hidden="true"><Icon size={16} strokeWidth={1.8} /></span>
                   <span>{label}</span>
                 </Link>

@@ -112,6 +112,22 @@ export default function Dashboard({
     setNotice(label === "Overview" ? "" : `${label} workspace is ready to connect.`);
   }
 
+  function prefetchPage(label: string) {
+    const route = label === "Patients" ? "/patients"
+      : label === "Doctors" ? "/doctors"
+      : label === "Laboratory" ? "/laboratory"
+      : label === "Billing" ? "/billing"
+      : ["Pharmacy", "Inventory"].includes(label) ? "/pharmacy"
+      : label === "Imaging" ? "/imaging"
+      : ["Reports", "Analytics"].includes(label) ? "/reports"
+      : label === "Audit log" ? "/audit"
+      : label === "Settings" ? "/settings"
+      : label === "Staff" ? "/staff"
+      : label === "Queue" ? (role === "doctor" ? "/encounters" : "/appointments")
+      : label === "Appointments" ? "/appointments" : null;
+    if (route) router.prefetch(route);
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -125,7 +141,7 @@ export default function Dashboard({
         <nav aria-label="Main navigation" className="nav-groups">
           {visibleNavigation.map((group) => <section key={group.title} className="nav-group">
             <p className="nav-heading">{group.title}</p>
-            {group.items.map(([label, glyph]) => <button key={label} className={active === label ? "nav-link selected" : "nav-link"} onClick={() => choose(label)}>
+            {group.items.map(([label, glyph]) => <button key={label} className={active === label ? "nav-link selected" : "nav-link"} onMouseEnter={() => prefetchPage(label)} onFocus={() => prefetchPage(label)} onClick={() => choose(label)}>
               <Icon name={glyph} /><span>{label}</span>{label === "Queue" && <i className="nav-dot" />}
             </button>)}
           </section>)}
